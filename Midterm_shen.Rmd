@@ -25,6 +25,9 @@ table(midterm_cleaned$SEX) #check sex variable
 aggregate(midterm_cleaned$ht_meters,
           list(midterm_cleaned$SEX),
           median, na.rm = TRUE) #calculate median by sex
+aggregate(midterm_cleaned$ht_meters,
+          list(midterm_cleaned$SEX),
+          mean, na.rm = TRUE) #calculate mean by sex
 ggplot(data = midterm_cleaned, aes(x=SEX, y=ht_meters)) + 
   geom_boxplot() + 
   labs(x="Sex", y="Height(m)", title="boxplot") +
