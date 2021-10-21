@@ -1,0 +1,32 @@
+---
+title: "midterm"
+author: "Shuhan Shen"
+date: "10/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyverse) #open package
+midterm <- read.csv("https://raw.githubusercontent.com/kijohnson/ADA-Fall-2021/master/BRFSS2017_10percent_v.csv") #import data
+```
+```{r}
+midterm$SEX<-factor(midterm$SEX, 
+                      levels = c(1, 2), 
+                      labels = c("Male", "Female"))
+midterm_cleaned <- na.omit(midterm) #recode sex and omit NA
+table(midterm_cleaned$SEX) #check sex variable
+```
+```{r message=FALSE}
+aggregate(midterm_cleaned$ht_meters,
+          list(midterm_cleaned$SEX),
+          median, na.rm = TRUE) #calculate median by sex
+ggplot(data = midterm_cleaned, aes(x=SEX, y=ht_meters)) + 
+  geom_boxplot() + 
+  labs(x="Sex", y="Height(m)", title="boxplot") +
+  stat_summary(fun.y=median, geom="point", shape=2, color="blue") #add median
+```
