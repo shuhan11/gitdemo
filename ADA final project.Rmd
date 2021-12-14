@@ -1,0 +1,179 @@
+---
+title: "ADA final project"
+author: "Shuhan Shen"
+date: "10/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+
+## Open/install packages
+library(tidyverse)
+library(haven)
+library(table1)
+library(RODBC)
+pacman::p_load(ROCR, odds.n.ends, blorr, lmtest, car)
+```
+
+```{r warning=FALSE, message=FALSE}
+## Transfer MDB file to dta file
+
+# Store the file path in an object
+path = file.path("C:/Users/Shuhan/OneDrive/Desktop/fall 2021 ADA/SADC_2019_National.MDB")
+
+# odbcConnectAccess() stores an Access database in an object
+# Tools->Global options->General->change to 32bit version and reopen r
+channel.sadc <- RODBC::odbcConnectAccess(path)
+# Explore the tables in the object channel.sadc
+RODBC::sqlTables(channel.sadc)
+
+# Retrieve the dataset SADCQ.
+yrbss <- RODBC::sqlFetch(channel.sadc,"SADCQ")
+# Save as .dta
+haven::write_dta(yrbss, "C:/Users/Shuhan/OneDrive/Desktop/fall 2021 ADA/yrbss.dta")
+```
+
+```{r warning=FALSE}
+# Read dta
+yrbss <- read_dta("C:/Users/Shuhan/OneDrive/Desktop/fall 2021 ADA/yrbss.dta")
+```
+
+```{r}
+## Choose data in 2019  
+yrbss2019 <- filter(yrbss, year=='2019')
+
+## Variables:
+## q35: current vapor status 1=0 2=1-2 3=3-5 4=6-9 5=10-19 6=20-29 7=30
+## outcome: qconcentrating: DCRMD 1=yes
+## sex 1= female 2=male
+## grade 9 10 11 12
+## race4 1 = “White” 2 = “Black or African American” 3 = “Hispanic/Latino” 4 = “All Other Races”
+## q32 current smokingn  1= no
+## q47 marijuana 1=no
+
+## Exclude missing data on current vapor status & DCRMD
+yrbss2019 <- filter(yrbss2019, qconcentrating != "NA", q35 !="NA")
+
+## clean data
+yrbss2019_cleaned <- yrbss2019 %>%
+  dplyr::select(q35,qconcentrating,sex,grade,race4,q32,q41,q47)%>%
+  filter() %>%
+  mutate(vapor_status = recode_factor(.x = q35, 
+                             `1` = 'No',
+                             `2` = 'Yes',
+                             `3` = 'Yes',
+                             `4` = 'Yes',
+                             `5` = 'Yes',
+                             `6` = 'Yes',
+                             `7` = 'Yes')) %>%
+  mutate( freq_user = recode_factor(.x = q35, 
+                             `1` = 'No',
+                             `2` = 'No',
+                             `3` = 'No',
+                             `4` = 'No',
+                             `5` = 'No',
+                             `6` = 'Yes',
+                             `7` = 'Yes')) %>%
+  mutate(qconcentrating = recode_factor(.x = qconcentrating, 
+                             `2` = 'No',
+                             `1` = 'Yes')) %>%
+  mutate(sex = recode_factor(.x = sex, 
+                             `1` = 'Female',
+                             `2` = 'Male')) %>%
+  mutate(grade = recode_factor(.x = grade, 
+                             `1` = '9th',
+                             `2` = '10th',
+                             `3` = '11th',
+                             `4` = '12th')) %>%
+  mutate(race4 = recode_factor(.x = race4, 
+                               `1` = 'White',
+                               `2` = 'Black or African American',
+                               `3` = 'Hispanic/Latino',
+                               `4` = 'All Other Races')) %>%
+  mutate(q32 = recode_factor(.x = q32, 
+                             `1` = 'No',
+                             `2` = 'Yes',
+                             `3` = 'Yes',
+                             `4` = 'Yes',
+                             `5` = 'Yes',
+                             `6` = 'Yes',
+                             `7` = 'Yes')) %>%
+  mutate(q41 = recode_factor(.x = q41, 
+                             `1` = 'No',
+                             `2` = 'Yes',
+                             `3` = 'Yes',
+                             `4` = 'Yes',
+                             `5` = 'Yes',
+                             `6` = 'Yes',
+                             `7` = 'Yes')) %>%
+  mutate(q47 = recode_factor(.x = q47, 
+                             `1` = 'No',
+                             `2` = 'Yes',
+                             `3` = 'Yes',
+                             `4` = 'Yes',
+                             `5` = 'Yes',
+                             `6` = 'Yes')) %>%
+  rename('Serious_DCRMD' = qconcentrating)%>%
+  rename('race' = race4)%>%
+  rename('smoking_status' = q32)%>%
+  rename('alcohol_use' = q41)%>%
+  rename('marijuana_use' = q47)
+```
+
+```{r}
+## Table 1
+dcrmdTable1 <- table1(
+  ~ sex
+  + grade
+  + race
+  + smoking_status
+  + marijuana_use
+  + vapor_status |
+    Serious_DCRMD,
+  data = yrbss2019_cleaned,
+  overall = "Total"
+)
+dcrmdTable1
+
+## write table in file
+write.csv(x=dcrmdTable1,
+          file = "C:/Users/Shuhan/OneDrive/Desktop/fall 2021 ADA/ADAmidterm/dcrmdTable1.csv",
+          row.names = FALSE)
+```
+
+```{r}
+## Logistic model
+
+# univariate
+vaping_univariate <- glm(Serious_DCRMD ~ vapor_status, data=yrbss2019_cleaned, family="binomial")
+summary(vaping_univariate)
+
+OR_uni<-exp(cbind(OR = coef(vaping_univariate), confint(vaping_univariate))) #calculate ORs and 95% CIs
+OR_uni #print ORs and 95% CIs
+
+# Adjusting for covariates
+vaping_multivariate <- glm(Serious_DCRMD ~ vapor_status + sex + grade + race + smoking_status + 
+                            marijuana_use, data=yrbss2019_cleaned, family="binomial")
+summary(vaping_multivariate)
+
+OR_multi<-exp(cbind(OR = coef(vaping_multivariate), confint(vaping_multivariate))) #calculate ORs and 95% CIs
+OR_multi #print ORs and 95% CIs
+```
+
+```{r}
+## Model fit
+#Various pseudo R squares, log likelihood, deviance, AIC, BIC
+blr_model_fit_stats(vaping_multivariate)
+#Hosmer lemeshow goodness of fit test: a significant p value indicates a bad fit
+blr_test_hosmer_lemeshow(vaping_multivariate)
+```
+
+```{r}
+## Multicollinearity
+vif(vaping_multivariate)
+```
+
